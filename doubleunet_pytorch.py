@@ -230,6 +230,64 @@ class build_doubleunet(nn.Module):
         y2 = self.y2(x)
 
         return y1, y2
+class unet(nn.Module):
+    def __init__(self, dimensions):
+        super().__init__()
+
+        self.e1 = encoder1()
+        self.a1 = ASPP(512, 64)
+        self.d1 = decoder1()
+        self.y1 = nn.Conv2d(32, 1, kernel_size=1, padding=0)
+        self.sigmoid = nn.Sigmoid()
+    def forward(self, x):
+        x0 = x
+        x, skip1 = self.e1(x)
+        x = self.a1(x)
+        x = self.d1(x, skip1)
+        y1 = self.y1(x)
+        return y1
+class build_unet_MG(nn.Module):
+    def __init__(self, dimensions, size, flag=False) :
+        super().__init__()
+        self.flag = flag
+        self.unetList = []
+        for i in range(size):
+            self.unetList.append(unet(dimensions))
+    def forward(self, x):
+        outputs = []
+        output  = 0
+        input = x
+        for i in self.unetList:
+            output = i.forward(input)
+            input = output
+            outputs.append(output)
+        if (self.flag):
+            return outputs
+        return output
+class build_double_unet_MG(nn.Module):
+    def __init__(self, dimensions, size, flag=False) :
+        super().__init__()
+        self.flag = flag
+        self.unetList = []
+        for i in range(size // 2):
+            self.unetList.append(build_doubleunet())
+        if size % 2 == 1:
+            self.unetList.append(unet(dimensions))
+    def forward(self, x):
+        outputs = []
+        y1 = 0
+        y2 = 0
+        input = x
+        for i in self.unetList:
+            y1, y2 = i.forward(input)
+            input = y2
+            outputs.append(y2)
+        if (self.flag):
+            return outputs
+        if y2 is None:
+            return y1
+        return y2
+
 
 if __name__ == "__main__":
     x = torch.randn((8, 3, 256, 256))
